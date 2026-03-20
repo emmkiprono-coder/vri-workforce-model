@@ -3,9 +3,10 @@ import { SectionTitle, MetricCard, Panel, Badge, GlobalStyles } from './ui-kit'
 
 interface Props { state: ModelState; update: (p: Partial<ModelState>) => void }
 
-function ShrinkRow({ label, benchLabel, val, paidMins, minVal, maxVal, bench, onChange }: {
+function ShrinkRow({ label, benchLabel, val, paidMins, minVal, maxVal, bench, onChange, fte, wdays }: {
   label: string; benchLabel: string; val: number; paidMins: number
   minVal: number; maxVal: number; bench: number; onChange: (v: number) => void
+  fte: number; wdays: number
 }) {
   const mins    = parseFloat((val / 100 * paidMins).toFixed(1))
   const maxMins = parseFloat((maxVal / 100 * paidMins + 1).toFixed(1))
@@ -21,8 +22,19 @@ function ShrinkRow({ label, benchLabel, val, paidMins, minVal, maxVal, bench, on
   else if (val > bench)        { badgeV = 'warning'; badgeLabel = 'Slightly high' }
   else                         { badgeV = 'info';    badgeLabel = 'Below target'  }
 
-  const barPct  = Math.min(100, (val / 20) * 100)
+  const barPct   = Math.min(100, (val / 20) * 100)
   const barColor = val > bench + 2 ? '#f87171' : val > bench ? '#fbbf24' : '#00D4A0'
+
+  // Monthly time lost across the whole team
+  const workDaysPerMonth    = wdays / 12
+  const minsLostPerFteDay   = (val / 100) * paidMins
+  const teamMinsLostMonthly = minsLostPerFteDay * fte * workDaysPerMonth
+  const teamHrsLostMonthly  = teamMinsLostMonthly / 60
+
+  // Format: show hours if ≥ 60 mins, otherwise just minutes
+  const monthlyLabel = teamHrsLostMonthly >= 1
+    ? `${teamHrsLostMonthly.toFixed(1)} hrs/mo`
+    : `${teamMinsLostMonthly.toFixed(0)} min/mo`
 
   return (
     <div className="py-3 border-b border-white/6 last:border-0">
@@ -34,7 +46,7 @@ function ShrinkRow({ label, benchLabel, val, paidMins, minVal, maxVal, bench, on
         <Badge variant={badgeV}>{badgeLabel}</Badge>
       </div>
 
-      {/* % slider row — always full width */}
+      {/* % slider row */}
       <div className="flex items-center gap-2 mb-2">
         <span className="text-[10px] text-white/35 w-6 flex-shrink-0">%</span>
         <input
@@ -51,7 +63,7 @@ function ShrinkRow({ label, benchLabel, val, paidMins, minVal, maxVal, bench, on
         </span>
       </div>
 
-      {/* min slider row */}
+      {/* min/day slider row */}
       <div className="flex items-center gap-2">
         <span className="text-[10px] text-white/35 w-6 flex-shrink-0">m</span>
         <input
@@ -67,6 +79,19 @@ function ShrinkRow({ label, benchLabel, val, paidMins, minVal, maxVal, bench, on
           {mins.toFixed(1)}m
         </span>
       </div>
+
+      {/* Monthly team time highlight */}
+      {val > 0 && (
+        <div className="mt-2 flex items-center gap-1.5">
+          <div
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold tabular-nums"
+            style={{ background: barColor + '18', color: barColor, border: `1px solid ${barColor}30` }}>
+            <span>⏱</span>
+            <span>{monthlyLabel} team</span>
+          </div>
+          <span className="text-[10px] text-white/25">across {fte} FTEs</span>
+        </div>
+      )}
 
       {/* progress bar */}
       <div className="mt-2 h-1 bg-white/8 rounded-full overflow-hidden">
@@ -130,6 +155,7 @@ export function ShrinkageBreakdown({ state, update }: Props) {
               key={c.key} label={c.label} benchLabel={c.benchLabel}
               val={state.shrinkVals[c.key] ?? c.val} paidMins={paidMins}
               minVal={c.min} maxVal={c.max} bench={c.bench}
+              fte={state.fte} wdays={state.wdays}
               onChange={v => setShrink(c.key, v)}
             />
           ))}
@@ -141,6 +167,7 @@ export function ShrinkageBreakdown({ state, update }: Props) {
               key={c.key} label={c.label} benchLabel={c.benchLabel}
               val={state.shrinkVals[c.key] ?? c.val} paidMins={paidMins}
               minVal={c.min} maxVal={c.max} bench={c.bench}
+              fte={state.fte} wdays={state.wdays}
               onChange={v => setShrink(c.key, v)}
             />
           ))}
