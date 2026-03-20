@@ -31,10 +31,13 @@ function ShrinkRow({ label, benchLabel, val, paidMins, minVal, maxVal, bench, on
   const teamMinsLostMonthly = minsLostPerFteDay * fte * workDaysPerMonth
   const teamHrsLostMonthly  = teamMinsLostMonthly / 60
 
-  // Format: show hours if ≥ 60 mins, otherwise just minutes
-  const monthlyLabel = teamHrsLostMonthly >= 1
-    ? `${teamHrsLostMonthly.toFixed(1)} hrs/mo`
-    : `${teamMinsLostMonthly.toFixed(0)} min/mo`
+  // Handle direct monthly-minutes entry -> back-calculate % from it
+  const handleMonthlyMins = (enteredMins: number) => {
+    if (!fte || !workDaysPerMonth || !paidMins) return
+    const newMinsPerFteDay = enteredMins / (fte * workDaysPerMonth)
+    const newPct = Math.min(maxVal, Math.max(minVal, (newMinsPerFteDay / paidMins) * 100))
+    onChange(parseFloat(newPct.toFixed(2)))
+  }
 
   return (
     <div className="py-3 border-b border-white/6 last:border-0">
@@ -80,18 +83,28 @@ function ShrinkRow({ label, benchLabel, val, paidMins, minVal, maxVal, bench, on
         </span>
       </div>
 
-      {/* Monthly team time highlight */}
-      {val > 0 && (
-        <div className="mt-2 flex items-center gap-1.5">
-          <div
-            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold tabular-nums"
-            style={{ background: barColor + '18', color: barColor, border: `1px solid ${barColor}30` }}>
-            <span>⏱</span>
-            <span>{monthlyLabel} team</span>
-          </div>
-          <span className="text-[10px] text-white/25">across {fte} FTEs</span>
-        </div>
-      )}
+      {/* Monthly team time — editable input */}
+      <div className="mt-2.5 flex items-center gap-2"
+        style={{ background: barColor + '0e', borderRadius: 8, padding: '5px 8px', border: `1px solid ${barColor}22` }}>
+        <span className="text-[10px] flex-shrink-0" style={{ color: barColor }}>⏱ mo</span>
+        <input
+          type="number"
+          min={0}
+          step={1}
+          value={Math.round(teamMinsLostMonthly)}
+          onChange={e => handleMonthlyMins(parseFloat(e.target.value) || 0)}
+          className="flex-1 text-[12px] font-semibold tabular-nums text-center focus:outline-none"
+          style={{
+            background: 'transparent', border: 'none', color: barColor,
+            minWidth: 0, width: '100%'
+          }}
+        />
+        <span className="text-[10px] text-white/35 flex-shrink-0">min/mo</span>
+        <span className="text-[10px] tabular-nums flex-shrink-0" style={{ color: barColor + 'aa' }}>
+          {teamHrsLostMonthly >= 0.1 ? `(${teamHrsLostMonthly.toFixed(1)} hrs)` : ''}
+        </span>
+        <span className="text-[10px] text-white/25 flex-shrink-0">{fte} FTEs</span>
+      </div>
 
       {/* progress bar */}
       <div className="mt-2 h-1 bg-white/8 rounded-full overflow-hidden">
