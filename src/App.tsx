@@ -4,9 +4,11 @@ import { ProductivityModel } from './components/ProductivityModel'
 import { ShrinkageBreakdown } from './components/ShrinkageBreakdown'
 import { HourlySalary } from './components/HourlySalary'
 import { ScenarioPlanner } from './components/ScenarioPlanner'
+import { WFMAgent } from './components/WFMAgent'
 import { type ModelState, defaultState } from './lib/modelState'
 
 const TABS = [
+  { id: 'agent', label: '⚡ WFM Agent', badge: 'AI' },
   { id: 'competitive', label: 'Competitive Analysis' },
   { id: 'productivity', label: 'Productivity Model' },
   { id: 'shrinkage', label: 'Shrinkage Breakdown' },
@@ -15,7 +17,7 @@ const TABS = [
 ]
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('competitive')
+  const [activeTab, setActiveTab] = useState('agent')
   const [state, setState] = useState<ModelState>(defaultState)
   const update = (patch: Partial<ModelState>) => setState(prev => ({ ...prev, ...patch }))
 
@@ -37,7 +39,7 @@ export default function App() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-[11px] text-white/30 font-mono">v2.0</span>
+            <span className="text-[11px] text-white/30 font-mono">v3.0</span>
             <div className="w-1.5 h-1.5 rounded-full bg-[#00D4A0] animate-pulse"/>
           </div>
         </div>
@@ -47,16 +49,22 @@ export default function App() {
           <nav className="flex overflow-x-auto">
             {TABS.map(tab => (
               <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-                className={`px-5 py-3.5 text-[13px] font-medium whitespace-nowrap border-b-2 transition-all ${
+                className={`px-5 py-3.5 text-[13px] font-medium whitespace-nowrap border-b-2 transition-all flex items-center gap-2 ${
                   activeTab === tab.id ? 'border-[#00D4A0] text-[#00D4A0]' : 'border-transparent text-white/40 hover:text-white/70'
                 }`}>
                 {tab.label}
+                {tab.badge && (
+                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${activeTab === tab.id ? 'bg-[#00D4A0] text-[#0B0E14]' : 'bg-white/10 text-white/50'}`}>
+                    {tab.badge}
+                  </span>
+                )}
               </button>
             ))}
           </nav>
         </div>
       </div>
       <main className="max-w-[1400px] mx-auto px-6 py-8">
+        {activeTab === 'agent' && <WFMAgent state={state} update={update} />}
         {activeTab === 'competitive' && <CompetitiveAnalysis state={state} update={update} />}
         {activeTab === 'productivity' && <ProductivityModel state={state} update={update} />}
         {activeTab === 'shrinkage' && <ShrinkageBreakdown state={state} update={update} />}

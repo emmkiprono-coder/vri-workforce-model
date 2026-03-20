@@ -25,6 +25,12 @@ export interface ModelState {
   cpd: number
   wdays: number
   occupancy: number
+  // Call volume inputs (new)
+  dailyCallVolume: number   // total calls per day across team
+  useVolumeMode: boolean    // if true, derive CPD from volume÷FTE
+  // Goal / target (new)
+  goalCPM: number           // target CPM the user wants to achieve
+  goalMode: boolean         // show goal guidance panel
   // Productivity
   paidHrs: number
   shrinkage: number
@@ -90,6 +96,10 @@ export const defaultState: ModelState = {
   cpd: 20,
   wdays: 230,
   occupancy: 75,
+  dailyCallVolume: 200,
+  useVolumeMode: false,
+  goalCPM: 0.60,
+  goalMode: false,
   paidHrs: 8,
   shrinkage: 27,
   monthlyVol: 4000,
@@ -111,16 +121,42 @@ export function calcTotalShrinkage(shrinkVals: Record<string, number>) {
   return Object.values(shrinkVals).reduce((a, b) => a + b, 0)
 }
 
+export function calcEffectiveCPD(s: ModelState): number {
+  // If using volume mode, derive calls per day from total daily volume ÷ FTE
+  if (s.useVolumeMode && s.fte > 0) return s.dailyCallVolume / s.fte
+  return s.cpd
+}
+
 export function calcCompetitive(s: ModelState) {
   const totalCost = s.fte * (s.salary * (1 + s.benefits / 100) + s.techCost)
-  const totalMins = s.fte * s.cpd * s.wdays * s.aht
-  const yourCPM = totalCost / totalMins
+  // Shrinkage reduces available productive minutes
+  const effectiveCPD = calcEffectiveCPD(s)
+  const shrinkFactor = 1 - (s.shrinkage / 100)
+  const availableMinPerFtePerDay = s.paidHrs * 60 * shrinkFactor
+  // Total billable minutes = min(CPD × AHT, available productive time) × FTE × wdays
+  const theoreticalMins = s.fte * effectiveCPD * s.wdays * s.aht
+  const capacityMins = s.fte * availableMinPerFtePerDay * s.wdays * (s.occupancy / 100)
+  const totalMins = Math.min(theoreticalMins, capacityMins)
+  const yourCPM = totalCost / Math.max(1, totalMins)
   const delta = yourCPM - s.vendorRate
   const vendorEquiv = totalMins * s.vendorRate
   const savings = vendorEquiv - totalCost
   const beCallsPerDay = totalCost / (s.fte * s.wdays * s.aht * s.vendorRate)
-  const beAHT = totalCost / (s.fte * s.cpd * s.wdays * s.vendorRate)
-  return { totalCost, totalMins, yourCPM, delta, vendorEquiv, savings, beCallsPerDay, beAHT }
+  const beAHT = totalCost / (s.fte * effectiveCPD * s.wdays * s.vendorRate)
+  // Annual call minutes
+  const annualCalls = s.useVolumeMode ? s.dailyCallVolume * s.wdays : s.fte * effectiveCPD * s.wdays
+  const annualMinutes = annualCalls * s.aht
+  // Goal gap analysis
+  const goalGap = yourCPM - s.goalCPM
+  const minutesNeededForGoal = s.goalCPM > 0 ? totalCost / s.goalCPM : 0
+  const callsNeededForGoal = s.aht > 0 ? minutesNeededForGoal / (s.wdays * s.aht) : 0
+  const fteNeededForGoal = s.goalCPM > 0 ? totalCost / (s.goalCPM * totalMins / s.fte) : 0
+  return {
+    totalCost, totalMins, yourCPM, delta, vendorEquiv, savings,
+    beCallsPerDay, beAHT, effectiveCPD, shrinkFactor, capacityMins,
+    annualCalls, annualMinutes,
+    goalGap, minutesNeededForGoal, callsNeededForGoal, fteNeededForGoal
+  }
 }
 
 export function fmtK(n: number): string {
