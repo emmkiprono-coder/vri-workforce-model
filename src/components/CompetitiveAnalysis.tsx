@@ -155,6 +155,16 @@ export function CompetitiveAnalysis({ state, update }: Props) {
               {state.shrinkage.toFixed(1)}% → {(c.shrinkFactor * 100).toFixed(1)}% productive
             </span>
           </div>
+          {/* Capacity utilization warning in volume mode */}
+          {state.useVolumeMode && (
+            <div className={`mt-2 pt-2 border-t border-white/8 flex items-center justify-between`}>
+              <span className="text-[11px] text-white/50">Capacity utilization</span>
+              <span className={`text-[13px] font-semibold tabular-nums ${c.capacityUtilization > 100 ? 'text-[#f87171]' : c.capacityUtilization > 85 ? 'text-[#fbbf24]' : 'text-[#00D4A0]'}`}>
+                {c.capacityUtilization.toFixed(0)}%
+                {c.capacityUtilization > 100 && <span className="text-[10px] ml-1 text-[#f87171]">⚠ over capacity</span>}
+              </span>
+            </div>
+          )}
         </Panel>
       </div>
 

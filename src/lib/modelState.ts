@@ -153,28 +153,44 @@ export function calcEffectiveCPD(s: ModelState): number {
 }
 
 export function calcCompetitive(s: ModelState) {
-  const totalCost = s.fte * (s.salary * (1 + s.benefits / 100) + s.techCost)
+  const totalCost    = s.fte * (s.salary * (1 + s.benefits / 100) + s.techCost)
   const effectiveCPD = calcEffectiveCPD(s)
   const shrinkFactor = 1 - (s.shrinkage / 100)
   const availableMinPerFtePerDay = s.paidHrs * 60 * shrinkFactor
-  const theoreticalMins = s.fte * effectiveCPD * s.wdays * s.aht
   const capacityMins = s.fte * availableMinPerFtePerDay * s.wdays * (s.occupancy / 100)
-  const totalMins = Math.min(theoreticalMins, capacityMins)
-  const yourCPM = totalCost / Math.max(1, totalMins)
-  const delta = yourCPM - s.vendorRate
-  const vendorEquiv = totalMins * s.vendorRate
-  const savings = vendorEquiv - totalCost
+
+  // VOLUME MODE: user enters actual call volume — that drives totalMins directly.
+  // Do NOT cap against capacity here; capacity is shown as a warning, not a floor.
+  // CPD MODE: derive from staffing math and cap at physical capacity ceiling.
+  let totalMins: number
+  let annualCalls: number
+
+  if (s.useVolumeMode && s.fte > 0) {
+    annualCalls = s.dailyCallVolume * s.wdays
+    totalMins   = annualCalls * s.aht
+  } else {
+    annualCalls = s.fte * effectiveCPD * s.wdays
+    totalMins   = Math.min(annualCalls * s.aht, capacityMins)
+  }
+
+  const annualMinutes = totalMins
+  const yourCPM       = totalCost / Math.max(1, totalMins)
+  const delta         = yourCPM - s.vendorRate
+  const vendorEquiv   = totalMins * s.vendorRate
+  const savings       = vendorEquiv - totalCost
+  const capacityUtilization = capacityMins > 0 ? (totalMins / capacityMins) * 100 : 0
+
   const beCallsPerDay = totalCost / (s.fte * s.wdays * s.aht * s.vendorRate)
-  const beAHT = totalCost / (s.fte * effectiveCPD * s.wdays * s.vendorRate)
-  const annualCalls = s.useVolumeMode ? s.dailyCallVolume * s.wdays : s.fte * effectiveCPD * s.wdays
-  const annualMinutes = annualCalls * s.aht
-  const goalGap = yourCPM - s.goalCPM
+  const beAHT         = totalCost / (Math.max(1, s.fte * effectiveCPD * s.wdays) * s.vendorRate)
+
+  const goalGap              = yourCPM - s.goalCPM
   const minutesNeededForGoal = s.goalCPM > 0 ? totalCost / s.goalCPM : 0
-  const callsNeededForGoal = s.aht > 0 ? minutesNeededForGoal / (s.wdays * s.aht) : 0
-  const fteNeededForGoal = s.goalCPM > 0 ? totalCost / (s.goalCPM * totalMins / s.fte) : 0
+  const callsNeededForGoal   = s.aht > 0 ? minutesNeededForGoal / (s.wdays * s.aht) : 0
+  const fteNeededForGoal     = s.goalCPM > 0 ? totalCost / (s.goalCPM * totalMins / Math.max(1, s.fte)) : 0
+
   return {
     totalCost, totalMins, yourCPM, delta, vendorEquiv, savings,
-    beCallsPerDay, beAHT, effectiveCPD, shrinkFactor, capacityMins,
+    beCallsPerDay, beAHT, effectiveCPD, shrinkFactor, capacityMins, capacityUtilization,
     annualCalls, annualMinutes,
     goalGap, minutesNeededForGoal, callsNeededForGoal, fteNeededForGoal
   }
