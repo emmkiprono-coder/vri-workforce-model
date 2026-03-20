@@ -1,4 +1,4 @@
-import { type ModelState, calcCompetitive, fmtK, fmtM, fmt } from '../lib/modelState'
+import { type ModelState, calcCompetitive, fmtK, fmtM, fmt, appendActivity } from '../lib/modelState'
 import { SectionTitle, MetricCard, SliderRow, StatusBanner, Panel, GlobalStyles } from './ui-kit'
 
 interface Props { state: ModelState; update: (p: Partial<ModelState>) => void }
@@ -59,7 +59,7 @@ export function CompetitiveAnalysis({ state, update }: Props) {
                   <input
                     type="number" min={0.10} max={2.00} step={0.005}
                     value={state.goalCPM.toFixed(3)}
-                    onChange={e => update({ goalCPM: parseFloat(e.target.value) || 0.60 })}
+                    onChange={e => { const v = parseFloat(e.target.value) || 0.60; update({ goalCPM: v }); appendActivity({ type: 'goal_set', label: `Goal CPM set to $${v.toFixed(3)}` }) }}
                     className="w-28 text-right text-[15px] font-semibold text-[#00D4A0]"
                     style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8, padding: '6px 10px' }}
                   />

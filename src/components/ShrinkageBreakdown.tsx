@@ -1,4 +1,4 @@
-import { type ModelState, SHRINK_PLANNED, SHRINK_UNPLANNED, fmtK, fmt } from '../lib/modelState'
+import { type ModelState, SHRINK_PLANNED, SHRINK_UNPLANNED, fmtK, fmt, appendActivity } from '../lib/modelState'
 import { SectionTitle, MetricCard, Panel, Badge, GlobalStyles } from './ui-kit'
 
 interface Props { state: ModelState; update: (p: Partial<ModelState>) => void }
@@ -86,6 +86,7 @@ export function ShrinkageBreakdown({ state, update }: Props) {
     const newVals = { ...state.shrinkVals, [key]: v }
     const newTotal = Object.values(newVals).reduce((a, b) => a + b, 0)
     update({ shrinkVals: newVals, shrinkage: parseFloat(Math.min(70, newTotal).toFixed(1)) })
+    appendActivity({ type: 'shrinkage_change', label: `Shrinkage updated: ${key}`, detail: `${v.toFixed(1)}% → total ${Math.min(70, newTotal).toFixed(1)}%` })
   }
 
   const all = [...SHRINK_PLANNED, ...SHRINK_UNPLANNED]

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { type ModelState, calcCompetitive, fmtM, fmt, fmtK } from '../lib/modelState'
+import { type ModelState, calcCompetitive, fmtM, fmt, fmtK, appendActivity } from '../lib/modelState'
 import { GlobalStyles } from './ui-kit'
 
 interface Props { state: ModelState; update: (p: Partial<ModelState>) => void }
@@ -89,6 +89,7 @@ export function WFMAgent({ state, update: _update }: Props) {
     const userMsg: Message = { role: 'user', content: userText, ts: Date.now() }
     setMessages(prev => [...prev, userMsg])
     setLoading(true)
+    appendActivity({ type: 'agent_query', label: userText.slice(0, 80), detail: `CPM ${fmtM(calcCompetitive(state).yourCPM, 3)}` })
 
     try {
       const history = messages.map(m => ({ role: m.role, content: m.content }))
