@@ -146,7 +146,7 @@ export function ScenarioPlanner({ state }: Props) {
       <GlobalStyles />
 
       {/* Current model snapshot */}
-      <div className="mb-6 rounded-xl border border-[#00D4A0]/20 bg-[#00D4A0]/5 px-5 py-4">
+      <div className="mb-5 rounded-xl border border-[#00D4A0]/20 bg-[#00D4A0]/5 px-4 py-3 overflow-x-auto">
         <div className="text-[11px] text-[#00D4A0] font-semibold uppercase tracking-widest mb-2">Current Live Model</div>
         <div className="flex flex-wrap gap-5">
           {[
@@ -209,10 +209,10 @@ export function ScenarioPlanner({ state }: Props) {
                 <div className="flex gap-2 mb-2">
                   <input placeholder="Name" value={saveNames[i]}
                     onChange={e => setSaveNames(p => { const n=[...p]; n[i]=e.target.value; return n })}
-                    className="flex-1 text-[12px] px-2 py-1.5 rounded-lg border border-white/10 bg-white/5 text-white placeholder:text-white/25 focus:outline-none focus:border-[#00D4A0]/40" />
+                    className="flex-1 text-[13px] px-3 py-2 rounded-lg border border-white/10 bg-white/5 text-white placeholder:text-white/25 focus:outline-none focus:border-[#00D4A0]/40" />
                   <input placeholder="Label" value={saveLabels[i]}
                     onChange={e => setSaveLabels(p => { const n=[...p]; n[i]=e.target.value; return n })}
-                    className="flex-1 text-[12px] px-2 py-1.5 rounded-lg border border-white/10 bg-white/5 text-white placeholder:text-white/25 focus:outline-none focus:border-[#00D4A0]/40" />
+                    className="flex-1 text-[13px] px-3 py-2 rounded-lg border border-white/10 bg-white/5 text-white placeholder:text-white/25 focus:outline-none focus:border-[#00D4A0]/40" />
                 </div>
                 <button onClick={() => handleSave(i)}
                   className={`w-full text-[12px] font-semibold py-2 rounded-lg transition-all ${flash === i ? 'bg-[#00D4A0] text-[#0B0E14]' : 'bg-white/8 hover:bg-[#00D4A0]/20 text-white/70 hover:text-white border border-white/10'}`}>
@@ -226,7 +226,7 @@ export function ScenarioPlanner({ state }: Props) {
 
       {/* Comparison table */}
       <SectionTitle>Side-by-Side Comparison</SectionTitle>
-      <div className="overflow-x-auto rounded-2xl border border-white/8 mb-10">
+      <div className="table-wrap mb-10">
         <table>
           <thead>
             <tr>
@@ -304,7 +304,7 @@ export function ScenarioPlanner({ state }: Props) {
               No saved scenarios yet. Use the save form on any scenario card above.
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-2xl border border-white/8">
+            <div className="table-wrap">
               <table>
                 <thead>
                   <tr>
@@ -371,7 +371,7 @@ export function ScenarioPlanner({ state }: Props) {
               No activity yet. Interactions are tracked automatically.
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-2xl border border-white/8">
+            <div className="table-wrap">
               <table>
                 <thead>
                   <tr><th>Time</th><th>Type</th><th>Action</th><th>Detail</th></tr>

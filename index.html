@@ -2,8 +2,23 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Prevents iOS from zooming on input focus, enforces device width -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <!-- PWA / add-to-homescreen -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="WFM Model" />
+    <meta name="theme-color" content="#0B0E14" />
+    <!-- Prevents phone-number auto-detection -->
+    <meta name="format-detection" content="telephone=no" />
     <title>VRI Workforce Model — Advocate Health Language Services</title>
+    <style>
+      /* Ensure full bleed on mobile, no rubber-band background flash */
+      html, body { background: #0B0E14; overscroll-behavior: none; }
+      /* Prevent FOUC */
+      #root { min-height: 100dvh; }
+    </style>
   </head>
   <body>
     <div id="root"></div>
