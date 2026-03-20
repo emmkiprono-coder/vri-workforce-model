@@ -72,6 +72,10 @@ export interface ModelState {
   hOt: number
   hOtm: number
   activeHourlyRole: string
+  // Burnout predictor inputs
+  burnoutCallIntensity: number    // 1–5 scale
+  burnoutSupervisorRatio: number  // interpreters per supervisor
+  burnoutEnabled: boolean         // show burnout tab / apply model adjustment
 }
 
 // Shrinkage: meal breaks → Unpaid Lunch Break, personal → Planned Absenteeism (PTO)
@@ -139,6 +143,9 @@ export const defaultState: ModelState = {
   hOt: 0,
   hOtm: 1.5,
   activeHourlyRole: 'interpreter',
+  burnoutCallIntensity: 3,
+  burnoutSupervisorRatio: 20,
+  burnoutEnabled: true,
 }
 
 // ─── Calc helpers ─────────────────────────────────────────────────────────────
@@ -342,4 +349,156 @@ export function fmtDate(iso: string): string {
       month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
     })
   } catch { return iso }
+}
+
+// ─── Burnout model ────────────────────────────────────────────────────────────
+
+export interface BurnoutInputs {
+  // Workload intensity
+  callsPerFtePerDay: number       // effective CPD
+  ahtMins: number                 // avg handle time
+  occupancyPct: number            // % of available time on calls
+  // Recovery / schedule
+  paidHrsPerDay: number
+  shrinkagePct: number            // total shrinkage eats into recovery time
+  otHrsPerWeek: number            // overtime hours per week
+  // Signals from shrinkage components
+  unplannedAbsenteeismPct: number // 'absenteeism' key
+  turnoverDragPct: number         // 'voluntary_turn' key
+  lateArrivalsPct: number         // 'late_arrive' key
+  // Environment
+  callIntensity: number           // 1–5 scale: 1=low acuity, 5=high acuity/trauma
+  supervisorRatio: number         // interpreters per supervisor (lower = more support)
+}
+
+export interface BurnoutResult {
+  score: number                   // 0–100
+  zone: 'healthy' | 'caution' | 'high' | 'critical'
+  zoneLabel: string
+  zoneColor: string
+  drivers: { label: string; score: number; weight: number; contribution: number }[]
+  projectedShrinkageInflation: number   // % pts shrinkage will rise if current burnout persists
+  projectedTurnoverCost: number         // $ cost of projected additional turnover
+  recoveryActions: string[]
+  // Model adjustment: what does CPM look like with burnout-adjusted shrinkage?
+  burnoutAdjustedShrinkage: number
+}
+
+// Burnout driver weights (must sum to 1.0)
+const DRIVER_WEIGHTS = {
+  callDensity:     0.22,   // calls × AHT = cognitive throughput
+  recoveryDeficit: 0.20,   // occupancy leaves no buffer
+  scheduleCompr:   0.18,   // shrinkage squeezes actual working time
+  fatigue:         0.15,   // OT hours
+  turnoverSignal:  0.13,   // absenteeism + turnover drag = leading indicator
+  callIntensity:   0.12,   // emotional/cognitive demand of content
+}
+
+export function calcBurnout(inputs: BurnoutInputs, annualSalary: number): BurnoutResult {
+  const {
+    callsPerFtePerDay, ahtMins, occupancyPct,
+    shrinkagePct, otHrsPerWeek,
+    unplannedAbsenteeismPct, turnoverDragPct, lateArrivalsPct,
+    callIntensity, supervisorRatio,
+  } = inputs
+
+  // ── Individual driver scores (0–100) ───────────────────────────────────────
+
+  // 1. Call density: calls × AHT = minutes of cognitive work per day
+  //    Benchmark: 20 calls × 8 min = 160 min. Red zone: >320 min (8 hrs of calls)
+  const cognitiveMinutes = callsPerFtePerDay * ahtMins
+  const callDensityScore = Math.min(100, (cognitiveMinutes / 320) * 100)
+
+  // 2. Recovery deficit: occupancy above 85% leaves no mental buffer
+  //    85% = yellow, 92%+ = red
+  const recoveryScore = Math.min(100, Math.max(0, (occupancyPct - 50) / 45 * 100))
+
+  // 3. Schedule compression: shrinkage above 35% means available work time is crushed
+  //    The squeeze creates stress because staff feel they never have enough time
+  const scheduleScore = Math.min(100, Math.max(0, (shrinkagePct - 15) / 40 * 100))
+
+  // 4. Fatigue from overtime
+  //    0 OT = 0, 5h/wk = 40, 10h/wk = 75, 15h/wk = 100
+  const fatigueScore = Math.min(100, (otHrsPerWeek / 15) * 100)
+
+  // 5. Turnover signal: unplanned absence + turnover drag + late arrivals are
+  //    leading indicators of existing burnout
+  const turnoverSignal = Math.min(100, ((unplannedAbsenteeismPct + turnoverDragPct + lateArrivalsPct) / 12) * 100)
+
+  // 6. Call intensity: 1=low (routine admin), 5=high (trauma, ICU, mental health)
+  const intensityScore = Math.min(100, ((callIntensity - 1) / 4) * 100)
+
+  // ── Supervisor ratio adjustment: high ratio = less support = amplify score ─
+  // Benchmark: 1:15 (good), 1:25 (acceptable), 1:40+ (at risk)
+  const supervisionMultiplier = supervisorRatio <= 15 ? 0.9
+    : supervisorRatio <= 25 ? 1.0
+    : supervisorRatio <= 35 ? 1.10
+    : 1.20
+
+  // ── Composite score ────────────────────────────────────────────────────────
+  const rawScore = (
+    callDensityScore     * DRIVER_WEIGHTS.callDensity     +
+    recoveryScore        * DRIVER_WEIGHTS.recoveryDeficit +
+    scheduleScore        * DRIVER_WEIGHTS.scheduleCompr   +
+    fatigueScore         * DRIVER_WEIGHTS.fatigue         +
+    turnoverSignal       * DRIVER_WEIGHTS.turnoverSignal  +
+    intensityScore       * DRIVER_WEIGHTS.callIntensity
+  ) * supervisionMultiplier
+
+  const score = Math.min(100, Math.round(rawScore))
+
+  // ── Zone ───────────────────────────────────────────────────────────────────
+  const zone: BurnoutResult['zone'] =
+    score < 30 ? 'healthy' :
+    score < 55 ? 'caution' :
+    score < 75 ? 'high'    : 'critical'
+
+  const zoneLabel = { healthy: 'Healthy', caution: 'Caution', high: 'High Risk', critical: 'Critical' }[zone]
+  const zoneColor = { healthy: '#00D4A0', caution: '#fbbf24', high: '#f97316', critical: '#f87171' }[zone]
+
+  // ── Drivers breakdown ──────────────────────────────────────────────────────
+  const drivers = [
+    { label: 'Call density / cognitive load',  score: Math.round(callDensityScore), weight: DRIVER_WEIGHTS.callDensity,     contribution: Math.round(callDensityScore * DRIVER_WEIGHTS.callDensity) },
+    { label: 'Recovery deficit (occupancy)',    score: Math.round(recoveryScore),    weight: DRIVER_WEIGHTS.recoveryDeficit, contribution: Math.round(recoveryScore * DRIVER_WEIGHTS.recoveryDeficit) },
+    { label: 'Schedule compression',            score: Math.round(scheduleScore),    weight: DRIVER_WEIGHTS.scheduleCompr,   contribution: Math.round(scheduleScore * DRIVER_WEIGHTS.scheduleCompr) },
+    { label: 'Fatigue (overtime)',               score: Math.round(fatigueScore),     weight: DRIVER_WEIGHTS.fatigue,         contribution: Math.round(fatigueScore * DRIVER_WEIGHTS.fatigue) },
+    { label: 'Turnover signals',                 score: Math.round(turnoverSignal),   weight: DRIVER_WEIGHTS.turnoverSignal,  contribution: Math.round(turnoverSignal * DRIVER_WEIGHTS.turnoverSignal) },
+    { label: 'Call intensity / acuity',          score: Math.round(intensityScore),   weight: DRIVER_WEIGHTS.callIntensity,   contribution: Math.round(intensityScore * DRIVER_WEIGHTS.callIntensity) },
+  ].sort((a, b) => b.contribution - a.contribution)
+
+  // ── Projected shrinkage inflation ──────────────────────────────────────────
+  // Research basis: each 10pt increase in burnout score above 40 adds ~1.2% shrinkage
+  // through increased absenteeism, lateness, and presenteeism
+  const shrinkageInflation = score > 40
+    ? parseFloat((((score - 40) / 10) * 1.2).toFixed(1))
+    : 0
+
+  // ── Projected turnover cost ────────────────────────────────────────────────
+  // Burnout → voluntary turnover rate rise. Each 10pt above 50 adds ~3% annualized turnover risk.
+  // Replacement cost = 50–200% of annual salary; use 80% for healthcare interpreters.
+  const addedTurnoverRate = score > 50 ? ((score - 50) / 10) * 0.03 : 0
+  const projectedTurnoverCost = annualSalary * 0.80 * addedTurnoverRate
+
+  // ── Burnout-adjusted shrinkage for model feedback ──────────────────────────
+  const burnoutAdjustedShrinkage = Math.min(70, parseFloat((inputs.shrinkagePct + shrinkageInflation).toFixed(1)))
+
+  // ── Recovery actions ───────────────────────────────────────────────────────
+  const recoveryActions: string[] = []
+  if (occupancyPct > 85)         recoveryActions.push(`Cap occupancy at 85% — current ${occupancyPct}% leaves no cognitive recovery buffer`)
+  if (callDensityScore > 60)     recoveryActions.push(`Reduce daily cognitive minutes — rotate high-acuity calls with lower-intensity ones`)
+  if (otHrsPerWeek > 4)          recoveryActions.push(`Limit overtime to ≤4 hrs/week — current ${otHrsPerWeek}h is above safe threshold`)
+  if (shrinkagePct > 35)         recoveryActions.push(`High shrinkage (${shrinkagePct.toFixed(1)}%) compresses productive windows — prioritize reducing absenteeism drivers`)
+  if (callIntensity >= 4)        recoveryActions.push(`High-acuity content requires mandatory debriefing time and peer support structures`)
+  if (supervisorRatio > 25)      recoveryActions.push(`Supervisor ratio ${supervisorRatio}:1 is high — add team lead layer or reduce span of control`)
+  if (unplannedAbsenteeismPct>5) recoveryActions.push(`Unplanned absence at ${unplannedAbsenteeismPct}% is a burnout signal — investigate root cause before adding FTEs`)
+  if (turnoverDragPct > 1.5)     recoveryActions.push(`Turnover drag ${turnoverDragPct}% — exit interviews and stay interviews needed now`)
+  if (recoveryActions.length === 0) recoveryActions.push('Current operating parameters are within healthy range — maintain and monitor quarterly')
+
+  return {
+    score, zone, zoneLabel, zoneColor, drivers,
+    projectedShrinkageInflation: shrinkageInflation,
+    projectedTurnoverCost,
+    recoveryActions,
+    burnoutAdjustedShrinkage,
+  }
 }

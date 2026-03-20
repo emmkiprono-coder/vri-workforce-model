@@ -172,7 +172,7 @@ export function ShrinkageBreakdown({ state, update }: Props) {
       `}</style>
 
       <div className="mb-4 text-[12px] sm:text-[13px] text-white/45 pb-4 border-b border-white/8">
-        Sliders are <span className="text-white/70">daily per FTE</span>. Monthly totals calculate automatically across all {state.fte} FTEs and are editable to back-calculate the daily rate.
+        All values are <span className="text-white/70">per individual FTE, per day</span>. Monthly totals multiply across your {state.fte} FTEs and are editable to back-calculate the per-FTE daily rate.
       </div>
 
       {/* Summary cards */}
@@ -185,11 +185,11 @@ export function ShrinkageBreakdown({ state, update }: Props) {
 
       {/* Monthly tabulation summary banner */}
       <div className="mb-5 rounded-xl border border-white/10 bg-[#111520] px-4 py-3">
-        <div className="text-[10px] text-white/35 uppercase tracking-widest font-semibold mb-2">Monthly Tabulation — {state.fte} FTEs</div>
+        <div className="text-[10px] text-white/35 uppercase tracking-widest font-semibold mb-2">Monthly Tabulation — Team Total ({state.fte} FTEs × {(state.wdays/12).toFixed(1)} days)</div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
-            { label: 'Lost min/FTE/day',    value: `${totalMinsDay.toFixed(1)}m`,          sub: 'Daily per interpreter' },
-            { label: 'Team min lost/mo',     value: `${fmt(Math.round(totalMinsMonthly), 0)}m`, sub: `${state.fte} FTEs × ${workDaysPerMonth.toFixed(1)} days` },
+            { label: 'Lost min / FTE / day',  value: `${totalMinsDay.toFixed(1)} min`,       sub: 'Per interpreter, per day' },
+            { label: 'Team min lost/mo',     value: `${fmt(Math.round(totalMinsMonthly), 0)} min`, sub: `${state.fte} FTEs × ${workDaysPerMonth.toFixed(1)} days/mo` },
             { label: 'Team hrs lost/mo',     value: `${totalHrsMonthly.toFixed(1)} hrs`,    sub: 'Equivalent hours' },
             { label: 'Est. monthly cost',    value: fmtK(totalCostMonthly),                 sub: 'Loaded wage cost', variant: 'warning' as const },
           ].map(({ label, value, sub, variant }) => (
